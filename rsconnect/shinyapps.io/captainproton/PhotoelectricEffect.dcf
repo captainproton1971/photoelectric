@@ -1,0 +1,12 @@
+name: PhotoelectricEffect
+title: PhotoelectricEffect
+username: captainproton
+account: captainproton
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 14438593
+bundleId: 10061510
+url: https://captainproton.shinyapps.io/PhotoelectricEffect/
+version: 1
+asMultiple: FALSE
+asStatic: FALSE
