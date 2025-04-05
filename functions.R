@@ -8,22 +8,6 @@ dmm_config <- yaml::yaml.load_file(multimeter_file)
 
 voltmeter_config <- as.data.frame(dmm_config$voltmeter_V)
 
-tidy.gls <- function(x, conf.int = FALSE, conf.level = 0.95, ...) {
-  est <- coef(x)
-  se  <- sqrt(diag(vcov(x)))
-  df  <- x$dims$N - length(est)
-  res <- data.frame(term = names(est), estimate = est, std.error = se)
-
-  if (conf.int) {
-    alpha <- 1 - conf.level
-    tval <- qt(1 - alpha / 2, df)
-    res$conf.low <- est - tval * se
-    res$conf.high <- est + tval * se
-  }
-
-  res
-}
-
 smart_format <- function(x, sci_thresh = 1e-3, digits = 4, sci_digits = 3) {
   x <- as.numeric(x)  # ensure numeric
   sapply(x, function(val) {
@@ -36,26 +20,9 @@ smart_format <- function(x, sci_thresh = 1e-3, digits = 4, sci_digits = 3) {
   })
 }
 
-pretty_uncert <- function(x, dx){
-  # A small function for displaying a value and uncertainty to appropriate number of sig. figs.  General rule, keep one uncertain digit
-  # unless leading digit is 1 in which case, retain two uncertain digtis.
-
-  pos <- -floor(log10(abs(dx)))
-  u_digits <- dx * 10^pos
-
-  if (round(u_digits < 2)){
-    pos <- pos + 1
-  }
-  f_string <- paste0("%.", pos, "f")
-
-  x_str <- sprintf(f_string, round(x*10^pos)/10^pos)
-  u_str <- sprintf(f_string, round(dx*10^pos)/10^pos)
-  return(x_str)
-  #return(paste0(x_str, "(", u_str,")"))
-}
 
 # Function for Iterated GLS Regression
-iterated_gls <- function(df, include_constant = TRUE, tolerance = 1e-3, max_iter = 100) {
+iterated_gls <- function(df, include_constant = TRUE, tolerance = 1e-4, max_iter = 100) {
   # Initial slope estimate (OLS)
   beta_old <- 0.1
   beta_new <- 1
@@ -204,33 +171,6 @@ get_rounded <- function(x) {
   )
 }
 
-#' Add Errors in Quadrature
-#
-#' This function computes the combined standard uncertainty for a set
-#' of measurements  with individual uncertainties, assuming that the
-#' errors are uncorrelated. It uses  the method of adding errors in
-#' quadrature, which is a standard procedure in error  analysis for
-#' combining multiple independent error terms.
-#
-#' @param x A numeric vector of uncertainties for each measurement.
-#' @return Returns the combined standard uncertainty as a numeric
-#' 	value.
-#' @examples
-#' error_values <- c(0.1, 0.2, 0.05)
-#' combined_error <- error_add(error_values)
-#' @export
-error_add <- function(x) {
-  # Simple adding by quadratures for error propagation
-  # x is an array of numerics.
-  # e.g., x=c(3,4,5,6,7)
-  # (e.g., continued) value <- error_add(x)
-  # value =
-  if (!is.numeric(x)) {
-    return("Not numeric")
-  } else {
-    return(sqrt(sum(x * x)))
-  }
-}
 
 #' count_decimal_places
 #' This helper function counts the decimal places of a floating-point
