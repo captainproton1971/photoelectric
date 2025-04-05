@@ -55,13 +55,13 @@ pretty_uncert <- function(x, dx){
 }
 
 # Function for Iterated GLS Regression
-iterated_gls <- function(df, include_constant = TRUE, tolerance = 1e-7, max_iter = 100) {
+iterated_gls <- function(df, include_constant = TRUE, tolerance = 1e-3, max_iter = 100) {
   # Initial slope estimate (OLS)
-  beta_old <- 0
+  beta_old <- 0.1
   beta_new <- 1
   iter <- 0
 
-  while(abs(beta_new - beta_old) > tolerance && iter < max_iter) {
+  while(abs((beta_new - beta_old)/beta_old) > tolerance && iter < max_iter) {
     iter <- iter + 1
     beta_old <- beta_new
 
@@ -131,6 +131,8 @@ create_plot <- function(df, model, units = "eV") {
                        height = sigma_y),
                    color = "black") +
     expand_limits(x = c(0, x_max_extended)) +
+    geom_hline(yintercept = 0, color = "black", linewidth = 0.6) +
+    geom_vline(xintercept = 0, color = "black", linewidth = 0.6) +
     theme_minimal() +
     labs(
       x = expression("Frequency (" * 10^{14} * " Hz)"),
