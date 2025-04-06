@@ -49,7 +49,7 @@ iterated_gls <- function(df, include_constant = TRUE, tolerance = 1e-4, max_iter
 }
 
 
-create_plot <- function(df, model, units = "eV") {
+create_plot <- function(df, model, units = "eV", multiplier) {
   # Rescale x-axis
   x_scale_factor <- 1e14
   df$x <- df$x / x_scale_factor
@@ -76,11 +76,11 @@ create_plot <- function(df, model, units = "eV") {
   se_fit <- sqrt(diag(X %*% vcov_beta %*% t(X)))
   dof <- model$dims$N - length(coef(model))
   t_crit <- qt(0.975, df = dof)
-  upr <- fit + t_crit * se_fit
-  lwr <- fit - t_crit * se_fit
+  upr <- multiplier*(fit + t_crit * se_fit)
+  lwr <- multiplier*(fit - t_crit * se_fit)
 
   # Rescale predictions for plotting
-  pred_df <- data.frame(x = x_vals, fit = fit / y_scale_factor,
+  pred_df <- data.frame(x = x_vals, fit = multiplier*fit / y_scale_factor,
                         lwr = lwr / y_scale_factor, upr = upr / y_scale_factor)
 
   # Build plot

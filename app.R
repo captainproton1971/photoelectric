@@ -62,27 +62,51 @@ server <- function(input, output) {
   PLANCK_EV <- 1.0
   PLANCK_J  <- 1.602176634e-19
 
-  dataInput <- eventReactive(input$run_analysis, {
+
+  multiplier <- reactive({
+    if (input$energy_units == "eV") PLANCK_EV else PLANCK_J
+  })
+  data_input <- eventReactive(input$run_analysis, {
     req(input$file1)
 
-    multiplier <- reactive({
-      switch(input$energy_units,
-             "eV" = PLANCK_EV,
-             "J"  = PLANCK_J)
-    })
+    # Define expected dimensions
+    expected_rows <- 5
+    expected_cols <- 7
+    expected_indices <- 3:9
 
+    # Initialize full data frame with NA
+    df_raw <- as.data.frame(matrix(NA, nrow = expected_rows, ncol = expected_cols))
 
+    # Read only what exists in the file
+    df_partial <- tryCatch(
+      openxlsx::read.xlsx(
+        input$file1$datapath,
+        sheet = 1,
+        rows = 3:7,
+        cols = expected_indices,
+        colNames = FALSE
+      ),
+      error = function(e) {
+        stop("Failed to read Excel file. Please make sure it has the expected structure.")
+      }
+    )
 
-    # Read the data without the "New names" message
-    df <- openxlsx::read.xlsx(input$file1$datapath, sheet = 1, rows = 3:7, cols = 3:9, colNames = FALSE)
+    # Copy existing data into the preallocated frame
+    ncols_available <- min(ncol(df_partial), expected_cols)
+    df_raw[, 1:ncols_available] <- df_partial[, 1:ncols_available]
+
 
     # Frequency = c / λ where λ is expressed in nm in the worksheet
-    x <- 299792458/as.numeric(df[,1]*1.0E-9)
+    x <- 299792458/as.numeric(df_raw[,1]*1.0E-9)
 
     # σ_x = σ_λ/λ * x
-    sigma_x <- as.numeric(df[,2])/as.numeric(df[,1])*x
+    sigma_x <- as.numeric(df_raw[,2])/as.numeric(df_raw[,1])*x
 
-    y_data <-suppressWarnings({data.frame(lapply(df[,3:7], function(x) as.numeric(as.character(x))))})
+    y_data <- suppressWarnings({
+      data.frame(
+        lapply(df_raw[, 3:7], function(x) as.numeric(as.character(x)))
+      )
+    })
     y_raw <- process_voltages(y_data)
 
 
@@ -97,17 +121,16 @@ server <- function(input, output) {
     na.omit(full_df)
   })
 
-  # Update modelResult()
-  modelResult <- reactive({
-    df <- dataInput()
-    multiplier <- if (input$energy_units == "eV") 1.0 else 1.602176634e-19
+  # Update model_result()
+  model_result <- reactive({
+    df <- data_input()
     colnames(df) <- c("x", "y","sigma_x","sigma_y")
       df <- df %>%
         mutate(
           x = as.numeric(x),
-          y = as.numeric(multiplier*y),
+          y = as.numeric(y),
           sigma_x = as.numeric(sigma_x),
-          sigma_y = as.numeric(multiplier*sigma_y)
+          sigma_y = as.numeric(sigma_y)
         )
 
     # Perform Iterated GLS Regression
@@ -116,7 +139,7 @@ server <- function(input, output) {
   })
 
   output$modelSummary <- renderUI({
-    result <- modelResult()
+    result <- model_result()
     model <- result$model
 
     tt <- summary(model)$tTable
@@ -141,14 +164,19 @@ server <- function(input, output) {
 
     # Select relevant columns
     coef_table <- coef_table %>%
-      select(all_of(c("term", "Estimated.Value", "Standard.Error",
-                      "Lower.95..CI", "Upper.95..CI", "P.value")))
+      select(all_of(c(
+        "term", "Estimated.Value", "Standard.Error",
+        "Lower.95..CI", "Upper.95..CI", "P.value"
+      )))
+
 
     coef_table$term <- ifelse(
       coef_table$term == "(Intercept)",
       paste0("Intercept (", input$energy_units, ")"),
       paste0("Slope (", input$energy_units, "·s)")
     )
+
+    coef_table[, 2:5] <- coef_table[, 2:5] * multiplier()
 
     coef_table[, 2:6] <- lapply(coef_table[, 2:6], smart_format)
     coef_table[, 6] <- formatC(as.numeric(coef_table[, 6]), format = "e", digits = 1)
@@ -167,21 +195,20 @@ server <- function(input, output) {
 
   # Update output$scatterPlot
   output$scatterPlot <- renderPlot({
-    df <- dataInput()
-    multiplier <- if (input$energy_units == "eV") 1.0 else 1.602176634e-19
+    df <- data_input()
 
     df <- df %>%
       mutate(
         x = as.numeric(x),
-        y = as.numeric(multiplier*y),
+        y = as.numeric(multiplier()*y),
         sigma_x = as.numeric(sigma_x),
-        sigma_y = as.numeric(multiplier*sigma_y)
+        sigma_y = as.numeric(multiplier()*sigma_y)
       )
 
-    result <- modelResult()
+    result <- model_result()
 
     # Create Plot
-    p <- create_plot(df, result$model, units=input$energy_units)
+    p <- create_plot(df, result$model, units=input$energy_units, multiplier=multiplier())
     print(p)
   })
 
